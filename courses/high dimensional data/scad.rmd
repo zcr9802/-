@@ -33,22 +33,31 @@ generate_data <-function (sigma_epsilon,n){
     }
     x = mvrnorm(n = n,mu = rep(0,p),Sigma = sigma_x)
     y = x%*%beta + sigma_epsilon*rnorm(n=n,mean=0,sd=1)
-    lars(x=x,y=y,type = 'lasso')
     return(list(x,y,beta))
     # sigma_epsl
 }
-RME <- function (real,fore){
-    rme = 0
-    for(i in seq(length(real))){
-        if(real[i]!=0){
-            rme=rme+abs(real[i]-fore[i])/real[i]
-        }else{
-            if(fore[i]!=0){
-                rme =rme+1
-            }
+```
+I think the rme is $\frac{(\hat\beta-\beta)^T E(\hat{xx^T})(\hat\beta-\beta)}{(\hat\beta-\beta)^T(\hat\beta-\beta)}$</br>
+but when $n$ is large,$(\hat\beta-\beta)^T(\hat\beta-\beta)$ can be very small, so the rme is even larger than small $n$</br>
+so, I  still use me  $(\hat\beta-\beta)^T E(\hat{xx^T})(\hat\beta-\beta)$</br>
+$\hat{xx^T} = \frac{1}{n}\sum_{i=1}^{n}x_ix^T_i$
+```{r}
+RME <- function (real,fore,x){
+    rho =0.5
+    p = length(real)
+    sigma_x = matrix(rho,p,p)
+    for(i in seq(p)){
+        for(j in seq(p)){
+            sigma_x[i,j]=rho**abs(i-j)
         }
     }
-    rme = rme/length(real)
+    #change the estimator_xxt by sigma_x to use the real E(xx^T)
+    estimator_xxt = matrix(0,p,p)
+    for(i in seq(dim(x)[1])){
+    estimator_xxt = estimator_xxt+x[i,]%*%t(x[i,])
+    }
+    estimator_xxt=estimator_xxt/dim(x)[1]
+    rme = t(real-fore)%*% estimator_xxt %*% (real-fore)
     # rme = mean(abs(real-fore)/real)
     return(rme)
 }
@@ -69,19 +78,23 @@ correct_or_not <-function (real,fore){
     return(c(correct,incorrect))
 }
 ```
+```{r}
+data = generate_data(sigma_epsilon = 3,n=10)
+data[[1]]
+```
+
 the function of creating the table 1
 -----------------------
 ```{r}
 table_1 <- function (test_time,sigma_epsilon,n){
     options (warn = -1)
-    test_time = 100
     lasso_rme_list =c()
     lasso_correct_list =c()
     lasso_incorrect_list =c()
-    #lambda is 0.5
-    scad_0.5_rme_list =c()
-    scad_0.5_correct_list =c()
-    scad_0.5_incorrect_list =c()
+    #gamma is 3.7
+    scad_3.7_rme_list =c()
+    scad_3.7_correct_list =c()
+    scad_3.7_incorrect_list =c()
     #lambda is choose by cv
     scad_cv_rme_list =c()
     scad_cv_correct_list =c()
@@ -95,30 +108,30 @@ table_1 <- function (test_time,sigma_epsilon,n){
         beta = data[[3]]
         lar1 = lars(x=data[[1]],y=data[[2]],type = 'lasso')
         lasso_beta_pre = lar1$beta[which.min(lar1$Cp),]
-        lasso_rme_list = c(lasso_rme_list,RME(beta,lasso_beta_pre))
+        lasso_rme_list = c(lasso_rme_list,RME(beta,lasso_beta_pre,data[[1]]))
         lasso_correct_list = c(lasso_correct_list,correct_or_not(beta,lasso_beta_pre)[1])
         lasso_incorrect_list = c(lasso_incorrect_list,correct_or_not(beta,lasso_beta_pre)[2])
-        scad_0.5 <- ncvreg(X=data[[1]],y=data[[2]],family="gaussian",penalty = "SCAD",lambda = 0.5)
-        scad_0.5_beta_pre = scad_0.5$beta[2:length(scad_0.5$beta)]
-        scad_0.5_rme_list = c(scad_0.5_rme_list,RME(beta,scad_0.5_beta_pre))
-        scad_0.5_correct_list = c(scad_0.5_correct_list,correct_or_not(beta,scad_0.5_beta_pre)[1])
-        scad_0.5_incorrect_list = c(scad_0.5_incorrect_list,correct_or_not(beta,scad_0.5_beta_pre)[2])
         scad <- cv.ncvreg(X=data[[1]],y=data[[2]],family=c("gaussian"),penalty = "SCAD")
+        scad_3.7 <- ncvreg(X=data[[1]],y=data[[2]],family="gaussian",penalty = "SCAD",gamma = 3.7)
+        scad_3.7_beta_pre = coef(scad_3.7,scad$lambda.min)[2:(length(beta)+1)]
+        scad_3.7_rme_list = c(scad_3.7_rme_list,RME(beta,scad_3.7_beta_pre,data[[1]]))
+        scad_3.7_correct_list = c(scad_3.7_correct_list,correct_or_not(beta,scad_3.7_beta_pre)[1])
+        scad_3.7_incorrect_list = c(scad_3.7_incorrect_list,correct_or_not(beta,scad_3.7_beta_pre)[2])
         scad_cv <- ncvreg(data[[1]],data[[2]],family="gaussian",penalty = "SCAD",lambda =scad$lambda.min)
-        scad_cv_beta_pre = scad_cv$beta[2:length(scad_0.5$beta)]
-        scad_cv_rme_list = c(scad_cv_rme_list,RME(beta,scad_cv_beta_pre))
+        scad_cv_beta_pre = scad_cv$beta[2:(length(beta)+1)]
+        scad_cv_rme_list = c(scad_cv_rme_list,RME(beta,scad_cv_beta_pre,data[[1]]))
         scad_cv_correct_list = c(scad_cv_correct_list,correct_or_not(beta,scad_cv_beta_pre)[1])
         scad_cv_incorrect_list = c(scad_cv_incorrect_list,correct_or_not(beta,scad_cv_beta_pre)[2])
         ridge =lm.ridge(formula = y~.,data=data.frame(y=data[[2]],x=data[[1]]))
         ridge_beta_pre = ridge$coef
-        ridge_rme_list = c(ridge_rme_list,RME(beta,ridge_beta_pre))
+        ridge_rme_list = c(ridge_rme_list,RME(beta,ridge_beta_pre,data[[1]]))
         ridge_correct_list = c(ridge_correct_list,correct_or_not(beta,ridge_beta_pre)[1])
         ridge_incorrect_list = c(ridge_incorrect_list,correct_or_not(beta,ridge_beta_pre)[2])
 
     }
 
     df = data.frame('Method'=0,'MRME'=0,'correct'=0,'incorrect'=0)
-    df[1,]=list('SCAD 0.5',median(scad_0.5_rme_list),mean(scad_0.5_correct_list),mean(scad_0.5_incorrect_list))
+    df[1,]=list('SCAD 3.7',median(scad_3.7_rme_list),mean(scad_3.7_correct_list),mean(scad_3.7_incorrect_list))
     df[2,]=list('SCAD cv',median(scad_cv_rme_list),mean(scad_cv_correct_list),mean(scad_cv_incorrect_list))
     df[3,]=list('LASSO',median(lasso_rme_list),mean(lasso_correct_list),mean(lasso_incorrect_list))
 
