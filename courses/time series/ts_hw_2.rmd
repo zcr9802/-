@@ -1,0 +1,104 @@
+---
+title: "time_series_homework_2"
+author: Chaorui Zhang
+date: 2021/4/28
+output:
+  html_document: default
+  word_document: default
+  pdf_document:
+    includes:
+      in_header: header.tex
+    keep_tex: yes
+    latex_engine: xelatex
+---
+
+homework 2
+=========
+张朝瑞
+-------
+12020113002
+---------
+数量经济学
+---------
+
+library
+-----------
+```{r}
+```
+
+运用参数的近似正态分布推导AR(2)模型中参数的区间估计的函数
+```{r}
+interval_by_asymptotic_ar_2 <- function (series,n_size,alpha) {
+  ma = ar(series,aic=F,order.max=2,method='yw')
+  t1=series[-n_size][-1]#x(t-1)序列
+  t2=series[-n_size][-(n_size-1)]#x(t-2)序列
+  t = series[-1][-1]#x(t)序列
+  series_lm =lm(t~t1+t2)
+  estimator = series_lm$coef[2:3]
+  # estimator = ma$ar
+  var_estimate = (1-estimator[2]**2)/n_size
+  length_interval = (qnorm(1-alpha/2)-qnorm(alpha))*sqrt(var_estimate)
+  interval_1 = c(estimator[1]-length_interval/2,estimator[1]+length_interval/2)
+  interval_2 = c(estimator[2]-length_interval/2,estimator[2]+length_interval/2)
+  print(paste("基于渐进分布",(1-alpha)*100,"%区间"))
+  print(sprintf('phi 1的%d%%区间为[%f,%f]',(1-alpha)*100,interval_1[1],interval_1[2]))
+  print(sprintf('phi 2的%d%%区间为[%f,%f]',(1-alpha)*100,interval_2[1],interval_2[2]))
+  return(c(interval_1,interval_2))
+}
+```
+运用基于残差的bootstrap推导参数的区间估计的函数
+```{r}
+interval_by_bootstap_ar_2 <-function(series,n_size,alpha,repeat_times=10000){
+  t1=series[-n_size][-1]#x(t-1)序列
+  t2=series[-n_size][-(n_size-1)]#x(t-2)序列
+  t = series[-1][-1]#x(t)序列
+  series_lm =lm(t~t1+t2)
+  estimator = series_lm$coef[2:3]
+  t_estimator = t1*estimator[1]+t2*estimator[2]
+  epsilon = t - t_estimator
+  list_phi1_estimator=c()
+  list_phi2_estimator=c()
+  for(i in seq(repeat_times)){
+    t_bootstrap = t_estimator+sample(epsilon,replace=TRUE,length(t))
+    phi_estimator = lm(t_bootstrap~t1+t2)$coef[2:3]
+    list_phi1_estimator=c(list_phi1_estimator,phi_estimator[1])
+    list_phi2_estimator=c(list_phi2_estimator,phi_estimator[2])
+  }
+  list_phi1_estimator = sort(list_phi1_estimator)
+  list_phi2_estimator = sort(list_phi2_estimator)
+  interval_phi1 = c(list_phi1_estimator[repeat_times*(alpha/2)],list_phi1_estimator[repeat_times*(1-alpha/2)])
+  interval_phi2 = c(list_phi2_estimator[repeat_times*(alpha/2)],list_phi2_estimator[repeat_times*(1-alpha/2)])
+  print(paste("基于残差的bootstrap",(1-alpha)*100,"%区间"))
+  print(sprintf('抽样次数为%d',repeat_times))
+  print(sprintf('phi 1的%d%%区间为[%f,%f]',(1-alpha)*100,interval_phi1[1],interval_phi1[2]))
+  print(sprintf('phi 2的%d%%区间为[%f,%f]',(1-alpha)*100,interval_phi2[1],interval_phi2[2]))
+  return(c(interval_phi1,interval_phi2))
+}
+# help("sample")
+```
+AR(2):$X_t=0.5X_{t-1}+0.4X_{t-2}+\epsilon_t$
+-------------------
+作业二整个程序
+```{r}
+hw_2 <-function(){
+  print('第二次作业')
+  n_size=100
+  ar=c(0.5,0.4)
+  alpha=0.05
+  series = arima.sim(n=n_size,list(ar=ar))
+  print('问题1')
+  print('------------')
+  interval_by_asymptotic_ar_2(series,n_size,alpha)
+  print('------------')
+  print('问题2')
+  print('------------')
+  print('运用基于残差的bootstrap方法获取参数的区间估计')
+  interval_by_bootstap_ar_2(series,n_size,alpha)
+  print('------------')
+}
+```
+
+运行
+```{r}
+hw_2()
+```
