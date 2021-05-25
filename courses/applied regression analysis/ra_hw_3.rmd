@@ -1,0 +1,253 @@
+---
+title: "regression_analysis_homework_3"
+author: Chaorui Zhang
+date: 2021/4/29
+output:
+  html_document: default
+  word_document: default
+  pdf_document:
+    includes:
+      in_header: header.tex
+    keep_tex: yes
+    latex_engine: xelatex
+---
+
+homework 3
+=========
+张朝瑞
+-------
+12020113002
+---------
+数量经济学
+---------
+
+对旅游数据的变量选择
+---------------
+```{r}
+library(msgps)
+library(ncvreg)
+```
+数据读取与对协变量的标准化处理
+-----------------------
+```{r}
+#读取数据
+load_data <- function(){
+  data_origin = read.csv("D:\\program project\\R project\\Regression_Analysis\\data_travel\\旅游数据.csv")
+  # 对x进行标准化处理
+  y=data_origin[,dim(data_origin)[2]]
+  # data_xy = data.frame(x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,y)
+  data_xy = data_origin[,-1]
+  data_xy[,-dim(data_xy)[2]]=scale(data_xy[,-dim(data_xy)[2]])
+  #将列名改为x1-xp和y
+  name_x = c()
+  for (i in seq(dim(data_xy)[2]-1)){
+    eval(parse(text=sprintf("name_x = c(name_x,'x%d')",i)))
+  } 
+  colnames(data_xy) = c(name_x,'y')
+  print('读取旅游数据并储存在数据框中(协变量经过标准化处理)')
+  print('------------------------')
+  print('数据框中字母对应的变量名')
+  print('------------------------')
+  for(i in seq(dim(data_xy)[2])){
+    print(sprintf("%s对应的变量为%s",colnames(data_xy)[i],colnames(data_origin)[-1][i]))
+  }
+  return(data_xy)
+}
+data_xy=load_data()
+```
+
+向前法的函数(自己构造的函数)
+-----------------
+```{r}
+list_to_add <-function(list_name){
+  #将一个名字列表以加号进行连接
+  name_added = list_name[1]
+  if(length(list_name)==1){
+    return(list_name[1])
+  }
+  for (i in seq(2,length(list_name))){
+    # print(name_added)
+    name_added = paste(name_added,seq='+',list_name[i])
+  }
+  return(name_added)
+}
+
+forward_linear_regression <- function(data_xy){
+  #data_xy是包含x和y的dataframe
+  #name_x是data_xy中所有x的变量名
+  name_x = colnames(data_xy)[1:(dim(data_xy)[2]-1)]
+  #比较m个一元线性回归的m个回归系数的t检测值的p值
+  regression_test=c()
+  for(x_i in name_x){
+    regression_test = c(regression_test,summary(lm(sprintf('y~%s',x_i),data=data_xy))$coef[2,4])
+    
+  }
+  order_regression = order(regression_test,decreasing = FALSE)
+  AIC_forward = c()
+  BIC_forward = c()
+  for(number_choosed in seq(length(name_x))){
+    number_choosed
+    x_choosed = name_x[order_regression[seq(number_choosed)]]
+    x_choosed
+    list_to_add(x_choosed)
+    linear_regression = lm(sprintf('y~%s',list_to_add(x_choosed)),data=data_xy)
+    summary(linear_regression)
+    AIC_forward = c(AIC_forward,AIC(linear_regression))
+    BIC_forward = c(BIC_forward,BIC(linear_regression))
+  }
+  AIC_min = which.min(AIC_forward)
+  BIC_min = which.min(BIC_forward)
+  print('向前法')
+  print('根据AIC的向前法')
+  print('随着选择的变量增多的AIC值为:')
+  print(AIC_forward)
+  print(sprintf("根据AIC的向前法选择的变量个数为%d",AIC_min))
+  print('选出的变量为(未显示的系数为0):')
+  print(name_x[order_regression[seq(AIC_min)]])
+  print('回归系数值为:')
+  print(summary(lm(sprintf('y~%s',list_to_add(name_x[order_regression[seq(AIC_min)]])),data=data_xy))$coef[-1,2])
+  print('根据BIC的向前法')
+  print('随着选择的变量增多的BIC值为:')
+  print(BIC_forward)
+  print(sprintf("根据BIC的向前法选择的变量个数为%d",BIC_min))
+  print('选出的变量为:')
+  print(name_x[order_regression[seq(BIC_min)]])
+  print('回归系数值为(未显示的系数为0):')
+  print(summary(lm(sprintf('y~%s',list_to_add(name_x[order_regression[seq(BIC_min)]])),data=data_xy))$coef[-1,2])
+}
+forward_linear_regression(data_xy)
+```
+向后法的函数(自己构造的函数)
+-------------
+```{r}
+backward_linear_regression <- function(data_xy){
+  #data_xy是包含x和y的dataframe
+  #name_x是data_xy中所有x的变量名
+  name_x = colnames(data_xy)[1:(dim(data_xy)[2]-1)]
+  AIC_backward = c()#记录AIC的值,随着被选的x依次减少
+  BIC_backward = c()#记录BIC的值,随着被选的x依次减少
+  x_deleted = c()#记录依次被删除的x
+  for(number_deleted in seq(length(name_x))){
+    if(length(x_deleted)==0){
+      linear_regression = lm(sprintf('y~%s',list_to_add(name_x)),data=data_xy)
+    }else{
+      linear_regression = lm(sprintf('y~%s',list_to_add(name_x[-x_deleted])),data=data_xy)
+      # print(list_to_add(name_x[-x_deleted]))
+    }
+    del = row.names(summary(linear_regression)$coef)[which.max(summary(linear_regression)$coef[2:dim(summary(linear_regression)$coef)[1],4])+1]
+    x_deleted=c(x_deleted,which(name_x==del))
+    AIC_backward = c(AIC_backward,AIC(linear_regression))
+    BIC_backward = c(BIC_backward,BIC(linear_regression))
+  }
+  #选出的变量个数
+  AIC_min = length(name_x)-which.min(AIC_backward)+1
+  BIC_min = length(name_x)-which.min(BIC_backward)+1
+  print('向后法')
+  print('根据AIC的向后法')
+  print('随着选择的变量减少的AIC值为:')
+  print(AIC_backward)
+  print(sprintf("根据AIC的向后法选择的变量个数为%d",AIC_min))
+  print('选出的变量为:')
+  print(name_x[-x_deleted[1:(which.min(AIC_backward)-1)]])
+  print('回归系数值为(未显示的系数为0):')
+  print(summary(lm(sprintf('y~%s',list_to_add(name_x[-x_deleted[1:(which.min(AIC_backward)-1)]])),data=data_xy))$coef[-1,2])
+  print('根据BIC的向后法')
+  print('随着选择的变量减少的BIC值为:')
+  print(BIC_backward)
+  print(sprintf("根据BIC的向后法选择的变量个数为%d",BIC_min))
+  print('选出的变量为:')
+  print(name_x[-x_deleted[1:(which.min(BIC_backward)-1)]])
+  print('回归系数值为(未显示的系数为0):')
+  print(summary(lm(sprintf('y~%s',list_to_add(name_x[-x_deleted[1:(which.min(BIC_backward)-1)]])),data=data_xy))$coef[-1,2])
+}
+backward_linear_regression(data_xy)
+```
+Lasso的函数(运用了msgps包)
+--------------
+```{r}
+Lasso <-function(data_xy){
+  #data_xy是包含x和y的dataframe
+  data_x = data.matrix(data_xy[,-dim(data_xy)[2]])
+  data_y = data_xy[,dim(data_xy)[2]]
+  data_x = data.matrix(data_x)
+  number_x = dim(data_x)[2]
+  #alpha=0的时候,弹性网络变成Lasso
+  lasso = msgps(data_x,data_y,penalty = 'enet',alpha=0)
+  AIC_which_zero = which(lasso$dfaicc_result$coef[2:(number_x+1)]==0) 
+  BIC_which_zero = which(lasso$dfbic_result$coef[2:(number_x+1)]==0)
+  print('Lasso')
+  print('根据AIC的Lasso')
+  print(sprintf("根据AIC的Lasso的变量个数为%d",number_x-length(AIC_which_zero)))
+  print('选出的变量为:')
+  print(colnames(data_x)[-AIC_which_zero])
+  print('回归系数值为(未显示的系数为0):')
+  print(lasso$dfaicc_result$coef[2:(number_x+1)][-AIC_which_zero])
+  print('根据BIC的Lasso')
+  print(sprintf("根据BIC的Lasso的变量个数为%d",number_x-length(BIC_which_zero)))
+  print('选出的变量为:')
+  print(colnames(data_x)[-BIC_which_zero])
+  print('回归系数值为(未显示的系数为0):')
+  print(lasso$dfbic_result$coef[2:(number_x+1)][-BIC_which_zero])
+}
+Lasso(data_xy)
+```
+SCAD的函数(运用了ncvreg包)
+-----------
+```{r}
+scad_aicbic <-function(data_xy){
+  #data_xy是包含x和y的dataframe
+  data_x = data.matrix(data_xy[,-dim(data_xy)[2]])
+  data_y = data_xy[,dim(data_xy)[2]]
+  number_x = dim(data_x)[2]
+  scad = ncvreg(data_x,data_y,penalty = 'SCAD')
+  parameter_AIC = scad$beta[,which.min(AIC(scad))][-1]
+  parameter_BIC = scad$beta[,which.min(BIC(scad))][-1]
+  AIC_which_notzero = which(parameter_AIC!=0)
+  BIC_which_notzero = which(parameter_BIC!=0)
+  print('SCAD')
+  print('根据AIC的SCAD')
+  print(sprintf("根据AIC的SCAD的变量个数为%d",length(AIC_which_notzero)))
+  print('选出的变量为:')
+  print(colnames(data_x)[AIC_which_notzero])
+  print('回归系数值为(未显示的系数为0):')
+  print(parameter_AIC[AIC_which_notzero])
+  print('根据BIC的SCAD')
+  print(sprintf("根据BIC的SCAD的变量个数为%d",length(BIC_which_notzero)))
+  print('选出的变量为:')
+  print(colnames(data_x)[BIC_which_notzero])
+  print('回归系数值为(未显示的系数为0):')
+  print(parameter_BIC[BIC_which_notzero])
+}
+scad_aicbic(data_xy)
+```
+弹性网络的函数(运用了msgps包)
+--------------
+```{r}
+elastic_net <-function(data_xy){
+  #data_xy是包含x和y的dataframe
+  data_x = data.matrix(data_xy[,-dim(data_xy)[2]])
+  data_y = data_xy[,dim(data_xy)[2]]
+  data_x = data.matrix(data_x)
+  number_x = dim(data_x)[2]
+  elastic = msgps(data_x,data_y,penalty = 'enet')
+  AIC_which_zero = which(elastic$dfaicc_result$coef[2:(number_x+1)]==0) 
+  BIC_which_zero = which(elastic$dfbic_result$coef[2:(number_x+1)]==0)
+  print('弹性网络')
+  print('根据AIC的弹性网络')
+  print(sprintf("根据AIC的弹性网络的变量个数为%d",number_x-length(AIC_which_zero)))
+  print('选出的变量为:')
+  print(colnames(data_x)[-AIC_which_zero])
+  print('回归系数值为(未显示的系数为0):')
+  print(elastic$dfaicc_result$coef[2:(number_x+1)][-AIC_which_zero])
+  print('根据BIC的弹性网络')
+  print(sprintf("根据BIC的弹性网络的变量个数为%d",number_x-length(BIC_which_zero)))
+  print('选出的变量为:')
+  print(colnames(data_x)[-BIC_which_zero])
+  print('回归系数值为(未显示的系数为0):')
+  print(elastic$dfbic_result$coef[2:(number_x+1)][-BIC_which_zero])
+}
+elastic_net(data_xy)
+```
+
+
+
