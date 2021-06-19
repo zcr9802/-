@@ -1,0 +1,71 @@
+---
+title: "homework 4 for regression analysis"
+author: "Chaorui Zhang"
+date: "2021/6/19"
+output:
+  html_document: default
+  word_document: default
+---
+
+homework 4
+=========
+张朝瑞
+-------
+12020113002
+---------
+数量经济学
+---------
+
+
+问题3
+-----------------
+引入虚拟变量，将公司类型为互助对应的虚拟变量设为0，将公司类型为股份对应的虚拟变量设为1
+```{r}
+question_3 <- function(){
+  y=c(17,26,21,30,22,0,12,19,4,16,28,15,11,38,31,21,20,13,30,14)
+  x1=c(151,92,175,31,104,277,210,120,290,238,164,272,295,68,85,224,166,305,124,246)
+  x2=c(0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1)
+  lr_q3 = lm(y~x1+x2)
+  print('-------------')
+  print('第八章问题三')
+  print('引入虚拟变量,互助对应0,股份对应1')
+  print(summary(lr_q3))
+  print('两个变量都十分显著')
+  print(sprintf('y对公司规模的回归系数为%f',(summary(lr_q3)$coef[2,1])))
+  print(sprintf('y对公司类型的回归系数为%f',(summary(lr_q3)$coef[3,1])))
+  print('-------------')
+}
+question_3()
+```
+
+
+
+问题7
+--------------------
+```{r}
+question_7 <- function(){
+  x=c(0.9,1.1,1.8,2.3,3.0,3.3,4.0)
+  p=c(0.37,0.31,0.44,0.6,0.67,0.81,0.79)
+  print('-------------')
+  print('第八章问题7')
+  print('第一问')
+  plot(x,p)
+  title('剂量与副作用比例')
+  linear_regression = lm(p~x)
+  print('由散点图初步认为p与x有线性关系')
+  print(summary(linear_regression))
+  print('由检验结果认为建立p与x的线性回归方程合适')
+  print(sprintf('p对x的线性回归系数为%f',summary(linear_regression)$coef[2,1]))
+  print('第二问')
+  print('对p进行logit变换')
+  p_logit = log(p/(1-p))
+  plot(x,p_logit)
+  title('剂量与经过logit变换的副作用比例')
+  logit_linear_regression = lm(p_logit~x)
+  print(summary(logit_linear_regression))
+  print(sprintf('p对x的logistic回归系数为%f',summary(logit_linear_regression)$coef[2,1]))
+
+  print('-------------')
+}
+question_7()
+```
